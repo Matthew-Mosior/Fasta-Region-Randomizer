@@ -15,6 +15,7 @@ import Bio.Core.Sequence as BCS
 import Bio.Sequence.Fasta as BSF
 import Control.Arrow as CA
 import Control.Monad as CM
+import Control.Monad.Primitive as CMP
 import Data.ByteString as DB
 import Data.ByteString.Char8 as DBC
 import Data.ByteString.Lazy as DBL
@@ -26,7 +27,7 @@ import Data.Ord as DO
 import Data.Traversable as DT
 import System.Console.GetOpt as SCG
 import System.Process as SP
-import System.Random as SR
+import System.Random.MWC as SRMWC
 import System.Environment as SE
 import System.Exit as SX
 import System.IO as SIO
@@ -220,20 +221,20 @@ intCheck = DL.all DC.isDigit
 --randomPositions -> This function will
 --generate random positions within
 --specified start and stop.
-randomPositions :: String -> String -> String -> [Flag] -> IO [Int]
-randomPositions [] [] [] []   = return []
-randomPositions _  [] [] []   = return []
-randomPositions [] _  [] []   = return []
-randomPositions [] [] _  []   = return []
-randomPositions [] [] [] _    = return []
-randomPositions xs ys zs opts = --Check if user passed BatchSize flag.
-                                if DL.length (DL.filter (isBatchSize) opts) > 0
-                                    then CM.replicateM
-                                         ((read zs) * (read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts)))))
-                                         (SR.randomRIO (read xs,read ys))
-                                    else CM.replicateM
-                                         (read zs)
-                                         (SR.randomRIO (read xs,read ys))
+randomPositions :: String -> String -> String -> [Flag] -> SRMWC.Gen (CMP.PrimState IO) -> IO [Int]
+randomPositions [] [] [] []   _   = return []
+randomPositions _  [] [] []   _   = return []
+randomPositions [] _  [] []   _   = return []
+randomPositions [] [] _  []   _   = return []
+randomPositions [] [] [] _    _   = return []
+randomPositions xs ys zs opts gen = --Check if user passed BatchSize flag.
+                                    if DL.length (DL.filter (isBatchSize) opts) > 0
+                                        then CM.replicateM
+                                             ((read zs) * (read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts)))))
+                                             ((SRMWC.uniformR (read xs,read ys) gen) :: IO Int)
+                                        else CM.replicateM
+                                             (read zs)
+                                             ((SRMWC.uniformR (read xs,read ys) gen) :: IO Int)
 
 {----------------------------}
 
@@ -242,17 +243,17 @@ randomPositions xs ys zs opts = --Check if user passed BatchSize flag.
 --randomNucleotides -> This function will 
 --create a list of random integers from 0 
 --to 2.
-randomNucleotides :: String -> [Flag] -> IO [Int]
-randomNucleotides []    []    = return []
-randomNucleotides []    (_:_) = return []
-randomNucleotides xs    opts  = --Check if user passed BatchSize flag.
-                                if DL.length (DL.filter (isBatchSize) opts) > 0
-                                    then CM.replicateM 
-                                         ((read xs) * (read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts))))) 
-                                         (SR.randomRIO (0,2))
-                                    else CM.replicateM 
-                                         (read xs) 
-                                         (SR.randomRIO (0,2))
+randomNucleotides :: String -> [Flag] -> SRMWC.Gen (CMP.PrimState IO) -> IO [Int]
+randomNucleotides []    []    _   = return []
+randomNucleotides []    (_:_) _   = return []
+randomNucleotides xs    opts  gen = --Check if user passed BatchSize flag.
+                                    if DL.length (DL.filter (isBatchSize) opts) > 0
+                                        then CM.replicateM 
+                                             ((read xs) * (read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts))))) 
+                                             ((SRMWC.uniformR (0,2) gen) :: IO Int)
+                                        else CM.replicateM 
+                                             (read xs) 
+                                             ((SRMWC.uniformR (0,2) gen) :: IO Int)
 
 {------------------------------}
 
@@ -405,10 +406,15 @@ processArgsAndFiles (options,files) = do
     --Process the fasta file.
     readfastafile <- BSF.readFasta (files DL.!! 4)   
     -------------------------
+    --Create the random number generator 
+    --(implementation of Marsaglia's MWC256 multiply-with-carry generator).
+    gen <- SRMWC.create
+    -----------------------------------------------------------------------
+    ------------------------------------
     --Get random positions.
-    randompositions <- randomPositions readstartarg readstoparg readnumbatchesarg options
+    randompositions <- randomPositions readstartarg readstoparg readnumbatchesarg options gen
     --Get random nucleotides.
-    randomnucleotides <- randomNucleotides readnumbatchesarg options
+    randomnucleotides <- randomNucleotides readnumbatchesarg options gen
     --Run randomsnvsgenerator.
     let randomsnvs = randomSnvGenerator readchromosomearg 
                                         readfastafile
