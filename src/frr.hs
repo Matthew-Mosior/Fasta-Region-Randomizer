@@ -129,7 +129,7 @@ options :: [OptDescr Flag]
 options =
     [ Option ['v']     ["verbose"]    (NoArg Verbose)                "Output on stderr.",
       Option ['V','?'] ["version"]    (NoArg Version)                "Show version number.",
-      Option ['b']     ["batchsize"]  (ReqArg BatchSize "BATCHSIZE") "The size of each batch (DEFAULT=1).",
+      Option ['b']     ["batchsize"]  (ReqArg BatchSize "BATCHSIZE") "The number of batches (DEFAULT=1).",
       Option ['o']     ["outputfile"] (ReqArg OutputFile "OUTFILE")  "The path to the output file.", 
       Option []        ["help"]       (NoArg Help)                   "Print this help message."
     ]
