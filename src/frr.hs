@@ -1,11 +1,11 @@
 {-=FastaRegionRandomizer (FRR): A Haskell-based solution to=-}
 {-=generate X random snvs given chromosome, start, stop,=-}
-{-=strand, number of batches and a fasta file.=-}
+{-=strand, number of runs per batch and a fasta file.=-}
 {-=Author: Matthew Mosior=-}
 {-=Version: 1.0=-}
 {-=Synopsis:  This Haskell Script will take in=-}
 {-=user specified chromsome, start, stop, strand,=-} 
-{-=number of batches, and fasta file=-}
+{-=number of runs per batch, and fasta file=-}
 {-=and will generate X random SNVs.=-}
 
 
@@ -159,7 +159,7 @@ compilerOpts argv =
             SX.exitWith (SX.ExitFailure 1)
         where
             greeting        = "Fasta Region Randomizer, Copyright (c) 2020 Matthew Mosior.\n"
-            header          = "Usage: frr [-vV?o] [Chromosome] [Start] [Stop] [Number of SNVs] [Fasta file]"
+            header          = "Usage: frr [-vV?o] [Chromosome] [Start] [Stop] [Number of runs per batch] [Fasta file]"
             version         = "Fasta Region Randomizer (FRR), Version 1.0.\n"
             github          = "Please see https://github.com/Matthew-Mosior/Fasta-Region-Randomizer/wiki for more information.\n"
             flerror         = "Incorrect number of input arguments:\n\
@@ -167,7 +167,7 @@ compilerOpts argv =
                               \First argument   -> Chromosome\n\
                               \Second argument  -> Start\n\
                               \Third argument   -> Stop\n\ 
-                              \Fourth argument  -> Number of SNVs\n\
+                              \Fourth argument  -> Number of runs per batch\n\
                               \Fifth argument   -> Fasta file\n"
             bserror         = "Incorrect batch size argument.\n\
                               \Please provide a number (integer).\n"
