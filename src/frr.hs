@@ -271,7 +271,7 @@ randomSnvGeneratorSmall as es fs gs = randomSnvs as es fs gs
         randomSnvsSmall :: DBC.ByteString -> [Int] -> [Int] -> String -> [(String,String,String,(String,String))]
         randomSnvsSmall _ []    _  _  = []
         randomSnvsSmall _ (_:_) [] _  = []
-        randomSnvsSmall xs (y:ys) (z:zs) as = [(as,show y,show y,mapTuple (\x -> [x]) (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) [DBC.index xs (y+1)])) DL.!! z))] ++ (randomSnvsSmall xs ys zs as)
+        randomSnvsSmall xs (y:ys) (z:zs) as = [(as,show y,show y,mapTuple (\x -> [x]) (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) [DBC.index xs (y-1)])) DL.!! z))] ++ (randomSnvsSmall xs ys zs as)
         --grabFastaSequence -> This function will
         --grab the correct fasta sequence
         --using chromosome information
