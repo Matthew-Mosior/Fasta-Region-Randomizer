@@ -221,28 +221,29 @@ intCheck = DL.all DC.isDigit
 --randomPositions -> This function will
 --generate random positions within
 --specified start and stop.
-randomPositions :: String -> String -> String -> SRMWC.Gen (CMP.PrimState IO) -> IO [Int]
-randomPositions [] [] [] _   = return []
-randomPositions _  [] [] _   = return []
-randomPositions [] _  [] _   = return []
-randomPositions [] [] _  _   = return []
-randomPositions xs ys zs gen = CM.replicateM
-                               (read zs)
-                               ((SRMWC.uniformR (read xs,read ys) gen) :: IO Int)
+randomPositions :: String -> String -> String -> IO [Int]
+randomPositions [] [] [] = return []
+randomPositions _  [] [] = return []
+randomPositions [] _  [] = return []
+randomPositions [] [] _  = return []
+randomPositions xs ys zs = CM.replicateM
+                           (read zs)
+                           ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> (SRMWC.uniformR (read xs,read ys) gen)) :: IO Int) 
 
 {----------------------------}
+
 
 {-Random nucleotides function.-}
 
 --randomNucleotides -> This function will 
 --create a list of random integers from 0 
 --to 2.
-randomNucleotides :: String -> SRMWC.Gen (CMP.PrimState IO) -> IO [Int]
-randomNucleotides []    _   = return []
-randomNucleotides xs    gen = CM.replicateM 
-                              (read xs) 
-                              ((SRMWC.uniformR (0,2) gen) :: IO Int)
-
+randomNucleotides :: String -> IO [Int]
+randomNucleotides [] = return []
+randomNucleotides xs = CM.replicateM 
+                       (read xs) 
+                       ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> (SRMWC.uniformR (0,2) gen)) :: IO Int)
+                           
 {------------------------------}
 
 
@@ -394,28 +395,29 @@ processArgsAndFiles (options,files) = do
     --Process the fasta file.
     readfastafile <- BSF.readFasta (files DL.!! 4)   
     -------------------------
-    --Create the random number generator 
-    --(implementation of Marsaglia's MWC256 multiply-with-carry generator).
-    gen <- SRMWC.create
-    -----------------------------------------------------------------------
-    ------------------------------------
     --Get random positions.
-    randompositions <- randomPositions readstartarg readstoparg readnumbatchesarg gen
+    randompositions <- randomPositions readstartarg readstoparg readnumbatchesarg
+    -----------------------
     --Get random nucleotides.
-    randomnucleotides <- randomNucleotides readnumbatchesarg gen
+    randomnucleotides <- randomNucleotides readnumbatchesarg
+    -------------------------
     --Run randomsnvsgenerator.
     let randomsnvs = randomSnvGenerator readchromosomearg 
                                         readfastafile
                                         randompositions
                                         randomnucleotides
+    --------------------------
     --Add batch column to randomsnvs.
     let batchadded = batchAdder randomsnvs readnumbatchesarg options 
+    ---------------------------------
     --Add header to randomsnvs.
     let finalpreprint = [["Batch","Chromosome","Start","Stop","Ref","Alt"]] ++ batchadded
+    ---------------------------
     --Print the file to stdout (cat) or to a file.
     if DL.length (DL.filter (isOutputFile) options) > 0 
         then printFile options finalpreprint
         else catFile finalpreprint
+    ----------------------------------------------
 
 {-------------------------}
 
