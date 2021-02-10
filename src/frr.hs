@@ -311,7 +311,7 @@ randomSnvGeneratorSmall es fs gs = (randomSnvs es fs gs)
         --in the region file.
         smallGrabFastaSequence :: Int -> [Sequence] -> [Int] -> DBC.ByteString
         smallGrabFastaSequence _ _ [] = DBC.empty
-        smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys !! z)))) == ("chr" ++ show x)) ->
+        smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys !! z)))) == (show x)) ->
                                                 strToBSC8 (bslToStr (extractunSD (extractSeqData (ys !! z))))
                                                 | otherwise ->
                                                 smallGrabFastaSequence x ys zs
