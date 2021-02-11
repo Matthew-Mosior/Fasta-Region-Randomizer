@@ -160,7 +160,7 @@ compilerOpts argv =
                  (not (intCheck (extractBatchSize (DL.head (DL.filter (isBatchSize) args))))) ->
                do SIO.hPutStrLn stderr (bserror ++ github ++ SCG.usageInfo header Main.options)
                   SX.exitWith (SX.ExitFailure 1)
-               | (DL.length files > 5 || DL.length files < 5) ->
+               | (DL.length files > 3 || DL.length files < 3) ->
                do SIO.hPutStrLn stderr (flerror ++ github ++ SCG.usageInfo header Main.options)
                   SX.exitWith (SX.ExitFailure 1)
                | otherwise ->
