@@ -170,17 +170,17 @@ compilerOpts argv =
             SIO.hPutStrLn stderr (DL.concat errors ++ SCG.usageInfo header Main.options)
             SX.exitWith (SX.ExitFailure 1)
         where
-            greeting        = "Fasta Region Randomizer, Copyright (c) 2020 Matthew Mosior.\n"
-            header          = "Usage: frr [-vV?o] [Sequence Window String] [Total Number of Randomized Variants] [Fasta file]"
-            version         = "Fasta Region Randomizer (FRR), Version 1.0.\n"
-            github          = "Please see https://github.com/Matthew-Mosior/Fasta-Region-Randomizer/wiki for more information.\n"
-            flerror         = "Incorrect number of input arguments:\n\
-                              \Please provide exactly five arguments files.\n\
-                              \First argument  -> Sequence Window String\n\ 
-                              \Second argument -> Total number of randomized variants to be created\n\
-                              \Third argument  -> Fasta file\n"
-            bserror         = "Incorrect batch size argument.\n\
-                              \Please provide a number (integer).\n"
+            greeting        = "\nFasta Region Randomizer, Copyright (c) 2020 Matthew Mosior.\n"
+            header          = "\nUsage: frr [-vV?bo] [Sequence Window String] [Total Number of Randomized Variants] [Fasta file]"
+            version         = "\nFasta Region Randomizer (FRR), Version 1.0.\n"
+            github          = "\nPlease see https://github.com/Matthew-Mosior/Fasta-Region-Randomizer/wiki for more information.\n"
+            flerror         = "\nIncorrect number of input arguments:\n\
+                               \Please provide exactly three inputs:\n\
+                               \First argument  -> Sequence Window String\n\ 
+                               \Second argument -> Total number of randomized variants to be created\n\
+                               \Third argument  -> Fasta file\n"
+            bserror         = "\nIncorrect batch size argument.\n\
+                               \Please provide a number (integer).\n"
 
 {---------------------------------------------------------}
 
@@ -254,7 +254,7 @@ randomPositions xs = do
        randomposition <- CM.replicateM
                           1
                           ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> 
-                           (SRMWC.uniformR (read start,read stop) gen)) :: IO Int)
+                           (SRMWC.uniformR ((read start) :: Int,(read stop) :: Int) gen)) :: IO Int)
        let finaltuple = (DL.head (DLS.splitOn ":" (randomwindow)),randomposition)
        --Return it.
        return finaltuple
