@@ -27,7 +27,6 @@ import Control.Monad.Primitive as CMP
 import Data.ByteString as DB
 import Data.ByteString.Char8 as DBC
 import Data.ByteString.Lazy as DBL
-import Data.ByteString.Search.DFA as DBSDFA
 import Data.Char as DC
 import Data.Foldable as DF
 import Data.List as DL
@@ -42,7 +41,6 @@ import System.Environment as SE
 import System.Exit as SX
 import System.IO as SIO
 import System.IO.Temp as SIOT
-import Text.PrettyPrint.Boxes as TPB
 
 {---------}
 
@@ -394,12 +392,9 @@ printFile opts xs = do
     --Extract the string from FilterFields.
     let outfilestring = extractOutputFile outfile
     --mapNotLast tabs and newlines in xs.
-    let tabsandnewlinesadded = DL.map (mapNotLast (++ "\t")) xs
+    let tabsandnewlinesadded = DL.intercalate "\n" (DL.map (DL.intercalate "\t") xs)
     --Write the output to the user-specified filename.
-    SIO.writeFile (outfilestring) $
-                  (TPB.render $
-                  (TPB.hsep 0 TPB.left . DL.map (TPB.vcat TPB.left) . DL.map (DL.map (TPB.text)))
-                  (DL.transpose tabsandnewlinesadded)) 
+    SIO.writeFile (outfilestring) $ (tabsandnewlinesadded)
 
 {---------------------}
 
