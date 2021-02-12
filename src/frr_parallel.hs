@@ -2,7 +2,7 @@
 {-=generate X random snvs given chromosome, sequence window string,=-}
 {-=strand, number of runs per batch and a fasta file.=-}
 {-=Author: Matthew Mosior=-}
-{-=Version: 1.0=-}
+{-=Version: 2.0=-}
 {-=Synopsis:  This Haskell Script will take in=-}
 {-=user specified chromsome, start, stop, strand,=-} 
 {-=number of runs per batch, and fasta file=-}
@@ -216,9 +216,9 @@ strToBSC8 xs = DBC.pack xs
 --atRandomIndex -> This function will
 --return random element of a list.
 atRandomIndex :: [a] -> IO a
-atRandomIndex x = do
-    index <- SR.randomRIO (0,DL.length x-1)
-    return $ x !! index
+atRandomIndex xs = do
+    index <- SR.randomRIO (0,DL.length xs-1)
+    return $ xs !! index
 
 {----------------------------}
 
@@ -237,25 +237,34 @@ intCheck = DL.all DC.isDigit
 
 {-Random positions function.-}
 
+--allRandomIndices -> This function will
+--generate random indices from 1 to the
+--length of the sequence window string
+--list X times, where X is the total number
+--of randomized variants.
+allRandomIndices :: [String] -> String -> IO [String]
+allRandomIndices _  [] = return []
+allRandomIndices [] _  = return []
+allRandomIndices xs ys = CMPP.replicateM (read ys) (atRandomIndex xs)
+
 --randomPositions -> This function will
 --generate random positions within
 --specified start and stop.
-randomPositions :: [String] -> IO (String,[Int])
-randomPositions [] = return ([],[])
-randomPositions xs = do
-       --Grab a random sequence window
-       randomwindow <- atRandomIndex xs 
-       --Extract the start and stop from randomwindow.
-       let start = fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" (randomwindow)))))) 
-       let stop  = snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" (randomwindow))))))
-       --Add the chromosome and randomized position to the resulting list.
-       randomposition <- CM.replicateM
-                          1
-                          ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> 
-                           (SRMWC.uniformR (read start,read stop) gen)) :: IO Int)
-       let finaltuple = (DL.head (DLS.splitOn ":" (randomwindow)),randomposition)
-       --Return it.
-       return finaltuple
+randomPositions :: [String] -> IO [(String,[Int])]
+randomPositions []     = return [] 
+randomPositions (x:xs) = do
+    --Extract the start and stop from randomwindow.
+    let start = fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x))))) 
+    let stop  = snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))
+    --Add the chromosome and randomized position to the resulting list.
+    randomposition <- CM.replicateM
+                       1
+                       ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> 
+                       (SRMWC.uniformR (read start,read stop) gen)) :: IO Int)
+    --Add it to the resultant list and recurse.
+    return ((DL.head (DLS.splitOn ":" x),randomposition))
+    --Recurse.
+    randomPositions xs
 
 {----------------------------}
 
@@ -409,20 +418,22 @@ processArgsAndFiles ([],[]) = return ()
 processArgsAndFiles (options,files) = do
     --Process the Sequence Window String argument.
     let readseqwindowstrarg = files DL.!! 0
-    -----------------------------
+    ----------------------------------------------
     --Process the total number of randomized variants.
     let readtotalnumberofrandomvararg = files DL.!! 1
-    ---------------------------------------------
+    --------------------------------------------------
     --Process the fasta file.
     readfastafile <- BSF.readFasta (files DL.!! 2)   
     -------------------------
     --Prepare readseqwindowstrarg.
     let seqwindowstr = DLS.splitOn "#" (DL.init (DL.tail readseqwindowstrarg)) 
     ------------------------------
+    --Generate all list of randomly picked sequence window
+    --strings [Total Amount of Randomized Variants] times.
+    randomseqwindowstrs <- allRandomIndices seqwindowstr readtotalnumberofrandomvararg
+    ------------------------------
     --Get random positions.
-    randompositions <- CMPP.replicateM 
-                       (read readtotalnumberofrandomvararg) 
-                       (randomPositions seqwindowstr)
+    randompositions <- randomPositions randomseqwindowstrs
     -----------------------
     --Get random nucleotides.
     randomnucleotides <- randomNucleotides readtotalnumberofrandomvararg
