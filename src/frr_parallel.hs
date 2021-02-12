@@ -261,10 +261,14 @@ randomPositions (x:xs) = do
                        1
                        ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> 
                        (SRMWC.uniformR (read start,read stop) gen)) :: IO Int)
-    --Add it to the resultant list and recurse.
-    return ((DL.head (DLS.splitOn ":" x),randomposition))
-    --Recurse.
-    randomPositions xs
+    --Create resultant tuple.
+    let currentrandomposition = [(DL.head (DLS.splitOn ":" x),randomposition)]
+    --Do this for remainder of input list.
+    restrandompositions <- randomPositions xs
+    --Set the resulting concatenation of currentrandomposition and restrandompositions.
+    let finalallrandompositions = currentrandomposition ++ restrandompositions
+    --Return finalallrandompositions.
+    return finalallrandompositions
 
 {----------------------------}
 
