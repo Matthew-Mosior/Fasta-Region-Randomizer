@@ -253,7 +253,7 @@ randomPositions xs = do
        randomposition <- CM.replicateM
                           1
                           ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> 
-                           (SRMWC.uniformR ((read start) :: Int,(read stop) :: Int) gen)) :: IO Int)
+                           (SRMWC.uniformR (read start,read stop) gen)) :: IO Int)
        let finaltuple = (DL.head (DLS.splitOn ":" (randomwindow)),randomposition)
        --Return it.
        return finaltuple
@@ -297,21 +297,21 @@ randomSnvGeneratorSmall es fs gs = (randomSnvs es fs gs)
         randomSnvs _ (_:_) [] = []
         randomSnvs xs (y:ys) (z:zs) = [(fst y,show (DL.head (snd y)),show (DL.head (snd y)),mapTuple (\x -> [x]) 
                                        (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) 
-                                       [DBC.index (grabFastaSequence (read (fst y)) xs) ((DL.head (snd y))-1)])) DL.!! z))] 
+                                       [DBC.index (grabFastaSequence (fst y) xs) ((DL.head (snd y))-1)])) DL.!! z))] 
                                     ++ (randomSnvs xs ys zs)
         --grabFastaSequence -> This function will
         --grab the correct fasta sequence
         --using chromosome information
         --in the region file.
-        grabFastaSequence :: Int -> [Sequence] -> DBC.ByteString
+        grabFastaSequence :: String -> [Sequence] -> DBC.ByteString
         grabFastaSequence x ys = smallGrabFastaSequence x ys [0..(DL.length ys) - 1]
         --smallGrabFastaSequence -> This function will
         --grab the correct fasta sequence
         --using chromosome information
         --in the region file.
-        smallGrabFastaSequence :: Int -> [Sequence] -> [Int] -> DBC.ByteString
+        smallGrabFastaSequence :: String -> [Sequence] -> [Int] -> DBC.ByteString
         smallGrabFastaSequence _ _ [] = DBC.empty
-        smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys !! z)))) == (show x)) ->
+        smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys !! z)))) == x) ->
                                                 strToBSC8 (bslToStr (extractunSD (extractSeqData (ys !! z))))
                                                 | otherwise ->
                                                 smallGrabFastaSequence x ys zs
