@@ -250,21 +250,20 @@ allRandomIndices xs ys = CMPP.replicateM (read ys) (atRandomIndex xs)
 --randomPositions -> This function will
 --generate random positions within
 --specified start and stop.
-randomPositions :: [String] -> IO [(String,[Int])]
-randomPositions []     = return [] 
-randomPositions (x:xs) = do
+randomPositions :: GenIO -> [String] -> IO [(String,[Int])]
+randomPositions _   []     = return [] 
+randomPositions gen (x:xs) = do
     --Extract the start and stop from randomwindow.
     let start = fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x))))) 
     let stop  = snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))
     --Add the chromosome and randomized position to the resulting list.
     randomposition <- CM.replicateM
-                       1
-                       ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> 
-                       (SRMWC.uniformR (read start,read stop) gen)) :: IO Int)
+                      1
+                      ((SRMWC.uniformR (read start,read stop) gen) :: IO Int)
     --Create resultant tuple.
     let currentrandomposition = [(DL.head (DLS.splitOn ":" x),randomposition)]
     --Do this for remainder of input list.
-    restrandompositions <- randomPositions xs
+    restrandompositions <- randomPositions gen xs
     --Set the resulting concatenation of currentrandomposition and restrandompositions.
     let finalallrandompositions = currentrandomposition ++ restrandompositions
     --Return finalallrandompositions.
@@ -278,11 +277,11 @@ randomPositions (x:xs) = do
 --randomNucleotides -> This function will 
 --create a list of random integers from 0 
 --to 2.
-randomNucleotides :: String -> IO [Int]
-randomNucleotides [] = return []
-randomNucleotides xs = CMPP.replicateM 
-                       (read xs) 
-                       ((SRMWC.withSystemRandom . SRMWC.asGenST $ \gen -> (SRMWC.uniformR (0,2) gen)) :: IO Int)
+randomNucleotides :: GenIO -> String -> IO [Int]
+randomNucleotides _   [] = return []
+randomNucleotides gen xs = CMPP.replicateM 
+                           (read xs) 
+                           ((SRMWC.uniformR (0,2) gen) :: IO Int)
                            
 {------------------------------}
 
@@ -436,11 +435,14 @@ processArgsAndFiles (options,files) = do
     --strings [Total Amount of Randomized Variants] times.
     randomseqwindowstrs <- allRandomIndices seqwindowstr readtotalnumberofrandomvararg
     ------------------------------
+    --Initialize random number generator by seeding the MWC PRNG.
+    randgen <- SRMWC.createSystemRandom
+    -------------------------------------------------------------
     --Get random positions.
-    randompositions <- randomPositions randomseqwindowstrs
+    randompositions <- randomPositions randgen randomseqwindowstrs
     -----------------------
     --Get random nucleotides.
-    randomnucleotides <- randomNucleotides readtotalnumberofrandomvararg
+    randomnucleotides <- randomNucleotides randgen readtotalnumberofrandomvararg
     -------------------------
     --Run randomsnvsgenerator.
     let randomsnvs = randomSnvGenerator readfastafile
