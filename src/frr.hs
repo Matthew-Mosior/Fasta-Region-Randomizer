@@ -32,6 +32,7 @@ import Data.List as DL
 import Data.List.Split as DLS
 import Data.Ord as DO
 import Data.Traversable as DT
+import Data.Vector.Fusion.Stream.Monadic as DVFSM
 import System.Console.GetOpt as SCG
 import System.Process as SP
 import System.Random as SR
@@ -149,22 +150,22 @@ compilerOpts argv =
     case getOpt Permute Main.options argv of
         (args,files,[]) ->
             if | DL.elem Help args ->
-               do SIO.hPutStrLn stderr (greeting ++ SCG.usageInfo header Main.options)
+               do SIO.hPutStrLn stderr (greeting DL.++ SCG.usageInfo header Main.options)
                   SX.exitWith SX.ExitSuccess
                | DL.elem Version args ->
-               do SIO.hPutStrLn stderr (greeting ++ version ++ SCG.usageInfo header Main.options)
+               do SIO.hPutStrLn stderr (greeting DL.++ version DL.++ SCG.usageInfo header Main.options)
                   SX.exitWith SX.ExitSuccess
                | (DL.length (DL.filter (isBatchSize) args) > 0) &&
                  (not (intCheck (extractBatchSize (DL.head (DL.filter (isBatchSize) args))))) ->
-               do SIO.hPutStrLn stderr (bserror ++ github ++ SCG.usageInfo header Main.options)
+               do SIO.hPutStrLn stderr (bserror DL.++ github DL.++ SCG.usageInfo header Main.options)
                   SX.exitWith (SX.ExitFailure 1)
                | (DL.length files > 3 || DL.length files < 3) ->
-               do SIO.hPutStrLn stderr (flerror ++ github ++ SCG.usageInfo header Main.options)
+               do SIO.hPutStrLn stderr (flerror DL.++ github DL.++ SCG.usageInfo header Main.options)
                   SX.exitWith (SX.ExitFailure 1)
                | otherwise ->
                return (DL.nub args, files)
         (_,_,errors) -> do
-            SIO.hPutStrLn stderr (DL.concat errors ++ SCG.usageInfo header Main.options)
+            SIO.hPutStrLn stderr (DL.concat errors DL.++ SCG.usageInfo header Main.options)
             SX.exitWith (SX.ExitFailure 1)
         where
             greeting        = "\nFasta Region Randomizer, Copyright (c) 2020 Matthew Mosior.\n"
@@ -217,7 +218,7 @@ strToBSC8 xs = DBC.pack xs
 atRandomIndex :: [a] -> IO a
 atRandomIndex xs = do
     index <- SR.randomRIO (0,DL.length xs-1)
-    return $ xs !! index
+    return $ xs DL.!! index
 
 {----------------------------}
 
@@ -244,29 +245,29 @@ intCheck = DL.all DC.isDigit
 allRandomIndices :: [String] -> String -> IO [String]
 allRandomIndices _  [] = return []
 allRandomIndices [] _  = return []
-allRandomIndices xs ys = CM.replicateM (read ys) (atRandomIndex xs)
+allRandomIndices xs ys = do
+    --Create the random indices.
+    let randomindicesmonadicstream = DVFSM.replicateM (Prelude.read ys) (atRandomIndex xs)
+    --Convert the monadic stream to a list.
+    DVFSM.toList randomindicesmonadicstream
 
 --randomPositions -> This function will
 --generate random positions within
 --specified start and stop.
-randomPositions :: GenIO -> [String] -> IO [(String,[Int])]
+randomPositions :: GenIO -> [String] -> IO [Int]
 randomPositions _   []     = return [] 
 randomPositions gen (x:xs) = do
     --Extract the start and stop from randomwindow.
     let start = fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x))))) 
     let stop  = snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))
     --Add the chromosome and randomized position to the resulting list.
-    randomposition <- CM.replicateM
-                      1
-                      ((SRMWC.uniformR (read start,read stop) gen) :: IO Int)
-    --Create resultant tuple.
-    let currentrandomposition = [(DL.head (DLS.splitOn ":" x),randomposition)]
-    --Do this for remainder of input list.
+    currentrandomposition <- DVFSM.toList (DVFSM.replicateM 1 ((SRMWC.uniformR (Prelude.read start,Prelude.read stop) gen) :: IO Int))
+    --Do this for remainder of list (xs).
     restrandompositions <- randomPositions gen xs
-    --Set the resulting concatenation of currentrandomposition and restrandompositions.
-    let finalallrandompositions = currentrandomposition ++ restrandompositions
-    --Return finalallrandompositions.
-    return finalallrandompositions
+    --Return the resulting concatenation of currentrandomposition and restrandompositions.
+    let allrandompositions = currentrandomposition DL.++ restrandompositions
+    --Return allrandompositions.
+    return allrandompositions
 
 {----------------------------}
 
@@ -278,10 +279,12 @@ randomPositions gen (x:xs) = do
 --to 2.
 randomNucleotides :: GenIO -> String -> IO [Int]
 randomNucleotides _   [] = return []
-randomNucleotides gen xs = CM.replicateM 
-                           (read xs) 
-                           ((SRMWC.uniformR (0,2) gen) :: IO Int)
-                           
+randomNucleotides gen xs = do
+    --Create the random nucleotides using a position mapping.
+    let randomnucleotidesmonadicstream = DVFSM.replicateM (Prelude.read xs) ((SRMWC.uniformR (0,2) gen) :: IO Int)
+    --Convert randomnucleotidesmonadicstream to a list.
+    DVFSM.toList randomnucleotidesmonadicstream
+
 {------------------------------}
 
 
@@ -289,26 +292,25 @@ randomNucleotides gen xs = CM.replicateM
 
 --randomSnvGenerator -> This function will
 --generate random snvs given user input.
-randomSnvGenerator :: [Sequence] -> [(String,[Int])] -> [Int] -> [[String]]
-randomSnvGenerator [] [] [] = []
-randomSnvGenerator es fs gs = DL.map (\(a,b,c,(d,e)) -> [a,b,c,d,e]) (randomSnvGeneratorSmall es fs gs) 
+randomSnvGenerator :: [Sequence] -> [String] -> [Int] -> [Int] -> [[String]]
+randomSnvGenerator [] [] [] [] = []
+randomSnvGenerator ds es fs gs = DL.map (\(a,b,c,(d,e)) -> [a,b,c,d,e]) (randomSnvGeneratorSmall ds es fs gs) 
 --randomSnvGeneratorSmall -> This function will
 --generate random snvs given user input.
-randomSnvGeneratorSmall :: [Sequence] -> [(String,[Int])] -> [Int] -> [(String,String,String,(String,String))]
-randomSnvGeneratorSmall [] [] [] = []
-randomSnvGeneratorSmall es fs gs = (randomSnvs es fs gs)
+randomSnvGeneratorSmall :: [Sequence] -> [String] -> [Int] -> [Int] -> [(String,String,String,(String,String))]
+randomSnvGeneratorSmall [] [] [] [] = []
+randomSnvGeneratorSmall ds es fs gs = (randomSnvs ds es fs gs)
     where
         --Local definitions.--
         --randomSnvs -> This function will
         --generate random positions within
         --specified start and stop. 
-        randomSnvs :: [Sequence] -> [(String,[Int])] -> [Int] -> [(String,String,String,(String,String))]
-        randomSnvs _ []    _  = []
-        randomSnvs _ (_:_) [] = []
-        randomSnvs xs (y:ys) (z:zs) = [(fst y,show (DL.head (snd y)),show (DL.head (snd y)),mapTuple (\x -> [x]) 
-                                       (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) 
-                                       [DBC.index (grabFastaSequence (fst y) xs) ((DL.head (snd y))-1)])) DL.!! z))] 
-                                    ++ (randomSnvs xs ys zs)
+        randomSnvs :: [Sequence] -> [String] -> [Int] -> [Int] -> [(String,String,String,(String,String))]
+        randomSnvs _  []      []     []    = []
+        randomSnvs ws (x:xs) (y:ys) (z:zs) = [(DL.head (DLS.splitOn ":" x),Prelude.show y,Prelude.show y,mapTuple (\x -> [x]) 
+                                              (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) 
+                                              [DBC.index (grabFastaSequence (DL.head (DLS.splitOn ":" x)) ws) (y-1)])) DL.!! z))] 
+                                              DL.++ (randomSnvs ws xs ys zs)
         --grabFastaSequence -> This function will
         --grab the correct fasta sequence
         --using chromosome information
@@ -321,8 +323,8 @@ randomSnvGeneratorSmall es fs gs = (randomSnvs es fs gs)
         --in the region file.
         smallGrabFastaSequence :: String -> [Sequence] -> [Int] -> DBC.ByteString
         smallGrabFastaSequence _ _ [] = DBC.empty
-        smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys !! z)))) == x) ->
-                                                strToBSC8 (bslToStr (extractunSD (extractSeqData (ys !! z))))
+        smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys DL.!! z)))) == x) ->
+                                                strToBSC8 (bslToStr (extractunSD (extractSeqData (ys DL.!! z))))
                                                 | otherwise ->
                                                 smallGrabFastaSequence x ys zs
         --nucleotidemapping -> List containing possible mappings for nucleotides mutations.
@@ -351,13 +353,13 @@ batchAdder xs ys opts = --Check if user passed BatchSize flag.
         --Local definitions.--
         --batchlist -> This list is what will be added to xs (used in then statement).
         batchlist = DL.map (\x -> [x]) 
-                           (DL.map (show) 
+                           (DL.map (Prelude.show) 
                            (DL.concat 
                            (DL.map 
-                           (\x -> DL.take ((read ys) `div` 
-                           ((read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts))) :: Int))) 
+                           (\x -> DL.take ((Prelude.read ys) `div` 
+                           ((Prelude.read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts))) :: Int))) 
                            (DL.repeat x)) 
-                           [1..(read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts))) :: Int)])))
+                           [1..(Prelude.read (extractBatchSize (DL.head (DL.filter (isBatchSize) opts))) :: Int)])))
         ----------------------
 
 {-----------------------}
@@ -445,6 +447,7 @@ processArgsAndFiles (options,files) = do
     -------------------------
     --Run randomsnvsgenerator.
     let randomsnvs = randomSnvGenerator readfastafile
+                                        randomseqwindowstrs
                                         randompositions
                                         randomnucleotides
     --------------------------
@@ -452,7 +455,7 @@ processArgsAndFiles (options,files) = do
     let batchadded = batchAdder randomsnvs readtotalnumberofrandomvararg options 
     ---------------------------------
     --Add header to randomsnvs.
-    let finalpreprint = [["Batch","Chromosome","Start","Stop","Ref","Alt"]] ++ batchadded
+    let finalpreprint = [["Batch","Chromosome","Start","Stop","Ref","Alt"]] DL.++ batchadded
     ---------------------------
     --Print the file to stdout (cat) or to a file.
     if DL.length (DL.filter (isOutputFile) options) > 0 
