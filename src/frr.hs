@@ -26,13 +26,16 @@ import Control.Monad.Primitive as CMP
 import Data.ByteString as DB
 import Data.ByteString.Char8 as DBC
 import Data.ByteString.Lazy as DBL
+import Data.ByteString.Lazy.Char8 as DBLC8
 import Data.Char as DC
 import Data.Foldable as DF
+import Data.Int as DI
 import Data.List as DL
 import Data.List.Split as DLS
 import Data.Ord as DO
 import Data.Traversable as DT
 import Data.Vector.Fusion.Stream.Monadic as DVFSM
+import Data.Word8 as DW8
 import System.Console.GetOpt as SCG
 import System.Process as SP
 import System.Random as SR
@@ -208,6 +211,11 @@ mapNotLast fn (x:xs) = fn x : mapNotLast fn xs
 bslToStr :: DBL.ByteString -> String
 bslToStr = DL.map (DC.chr . fromEnum) . DBL.unpack
 
+--bslToStrSingleton -> This function will
+--convert from a singleton Bytestring (Lazy) to String.
+bslToStrS :: Word8 -> String
+bslToStrS = DBLC8.unpack . DBL.singleton
+
 --strToBSC8 -> This function will
 --convert Strings to Bytestring (Char8).
 strToBSC8 :: String -> DBC.ByteString
@@ -288,52 +296,55 @@ randomNucleotides gen xs = do
 {------------------------------}
 
 
-{-Random snv generator function.-}
+{-Random snv generator functions.-}
 
 --randomSnvGenerator -> This function will
 --generate random snvs given user input.
 randomSnvGenerator :: [Sequence] -> [String] -> [Int] -> [Int] -> [[String]]
 randomSnvGenerator [] [] [] [] = []
 randomSnvGenerator ds es fs gs = DL.map (\(a,b,c,(d,e)) -> [a,b,c,d,e]) (randomSnvGeneratorSmall ds es fs gs) 
+
 --randomSnvGeneratorSmall -> This function will
 --generate random snvs given user input.
 randomSnvGeneratorSmall :: [Sequence] -> [String] -> [Int] -> [Int] -> [(String,String,String,(String,String))]
 randomSnvGeneratorSmall [] [] [] [] = []
 randomSnvGeneratorSmall ds es fs gs = (randomSnvs ds es fs gs)
-    where
-        --Local definitions.--
-        --randomSnvs -> This function will
-        --generate random positions within
-        --specified start and stop. 
-        randomSnvs :: [Sequence] -> [String] -> [Int] -> [Int] -> [(String,String,String,(String,String))]
-        randomSnvs _  []      []     []    = []
-        randomSnvs ws (x:xs) (y:ys) (z:zs) = [(DL.head (DLS.splitOn ":" x),Prelude.show y,Prelude.show y,mapTuple (\x -> [x]) 
-                                              (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) 
-                                              [DBC.index (grabFastaSequence (DL.head (DLS.splitOn ":" x)) ws) (y-1)])) DL.!! z))] 
-                                              DL.++ (randomSnvs ws xs ys zs)
-        --grabFastaSequence -> This function will
-        --grab the correct fasta sequence
-        --using chromosome information
-        --in the region file.
-        grabFastaSequence :: String -> [Sequence] -> DBC.ByteString
-        grabFastaSequence x ys = smallGrabFastaSequence x ys [0..(DL.length ys) - 1]
-        --smallGrabFastaSequence -> This function will
-        --grab the correct fasta sequence
-        --using chromosome information
-        --in the region file.
-        smallGrabFastaSequence :: String -> [Sequence] -> [Int] -> DBC.ByteString
-        smallGrabFastaSequence _ _ [] = DBC.empty
-        smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys DL.!! z)))) == x) ->
-                                                strToBSC8 (bslToStr (extractunSD (extractSeqData (ys DL.!! z))))
-                                                | otherwise ->
-                                                smallGrabFastaSequence x ys zs
-        --nucleotidemapping -> List containing possible mappings for nucleotides mutations.
-        --(NUCLEOTIDE,NUCLEOTIDE_TRANSITION/NUCLEOTIDE_TRANSVERSION)
-        nucleotidemapping = [('A','T'),('A','G'),('A','C')
-                            ,('T','A'),('T','G'),('T','C')
-                            ,('G','C'),('G','A'),('G','T')
-                            ,('C','G'),('C','A'),('C','T')]
-        ----------------------
+
+--randomSnvs -> This function will
+--generate random positions within
+--specified start and stop. 
+randomSnvs :: [Sequence] -> [String] -> [Int] -> [Int] -> [(String,String,String,(String,String))]
+randomSnvs _  []      []     []    = []
+randomSnvs ws (x:xs) (y:ys) (z:zs) = [(DL.head (DLS.splitOn ":" x),Prelude.show y,Prelude.show y,mapTuple (\x -> [x]) 
+                                      (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) 
+                                      (bslToStrS (DBL.index (grabFastaSequence (DL.head (DLS.splitOn ":" x)) ws) 
+                                      (fromIntegral (y-1) :: Int64))))) DL.!! z))] 
+                                      DL.++ (randomSnvs ws xs ys zs)
+
+--grabFastaSequence -> This function will
+--grab the correct fasta sequence
+--using chromosome information
+--in the region file.
+grabFastaSequence :: String -> [Sequence] -> DBL.ByteString
+grabFastaSequence x ys = smallGrabFastaSequence x ys [0..(DL.length ys) - 1]
+
+--smallGrabFastaSequence -> This function will
+--grab the correct fasta sequence
+--using chromosome information
+--in the region file.
+smallGrabFastaSequence :: String -> [Sequence] -> [Int] -> DBL.ByteString
+smallGrabFastaSequence _ _ [] = DBL.empty
+smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys DL.!! z)))) == x) ->
+                                        extractunSD (extractSeqData (ys DL.!! z))
+                                        | otherwise ->
+                                        smallGrabFastaSequence x ys zs
+
+--nucleotidemapping -> List containing possible mappings for nucleotides mutations.
+--(NUCLEOTIDE,NUCLEOTIDE_TRANSITION/NUCLEOTIDE_TRANSVERSION)
+nucleotidemapping = [('A','T'),('A','G'),('A','C')
+                    ,('T','A'),('T','G'),('T','C')
+                    ,('G','C'),('G','A'),('G','T')
+                    ,('C','G'),('C','A'),('C','T')]
 
 {-----------------------------------}
 
