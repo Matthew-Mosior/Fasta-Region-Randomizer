@@ -187,15 +187,15 @@ compilerOpts argv =
 
 {-General Utility Functions.-}
 
---mapTuple -> This function will
---map a function across all elements
---of a two-tuple.
-mapTuple = CM.join (***)
-
 --tuplifyTwo -> The function will
 --turn a list of length two to a tuple.
 tuplifyTwo :: [a] -> (a,a)
 tuplifyTwo [x,y] = (x,y)
+
+--tripletThrd -> This function will
+--grab the third element of a triplet.
+tripletThrd :: (a,a,a) -> a
+tripletThrd (_,_,a) = a
 
 --mapNotLast -> This function will
 --work like the traditional map 
@@ -250,7 +250,7 @@ intCheck = DL.all DC.isDigit
 --length of the sequence window string
 --list X times, where X is the total number
 --of randomized variants.
-allRandomIndices :: [String] -> String -> IO [String]
+allRandomIndices :: [(String,Int,Char)] -> String -> IO [(String,Int,Char)]
 allRandomIndices _  [] = return []
 allRandomIndices [] _  = return []
 allRandomIndices xs ys = do
@@ -259,25 +259,63 @@ allRandomIndices xs ys = do
     --Convert the monadic stream to a list.
     DVFSM.toList randomindicesmonadicstream
 
---randomPositions -> This function will
---generate random positions within
---specified start and stop.
-randomPositions :: GenIO -> [String] -> IO [Int]
-randomPositions _   []     = return [] 
-randomPositions gen (x:xs) = do
-    --Extract the start and stop from randomwindow.
-    let start = fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x))))) 
-    let stop  = snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))
-    --Add the chromosome and randomized position to the resulting list.
-    currentrandomposition <- DVFSM.toList (DVFSM.replicateM 1 ((SRMWC.uniformR (Prelude.read start,Prelude.read stop) gen) :: IO Int))
-    --Do this for remainder of list (xs).
-    restrandompositions <- randomPositions gen xs
-    --Return the resulting concatenation of currentrandomposition and restrandompositions.
-    let allrandompositions = currentrandomposition DL.++ restrandompositions
-    --Return allrandompositions.
-    return allrandompositions
-
 {----------------------------}
+
+
+{-Custom Sequence Data Structure Functions.-}
+
+--This function will
+--create a custom sequence based 
+--on the sequence window string.
+--[(String,Int,Char)] <-> [(DescriptionLine,Position,nucleotide/aminoacid sequence)]
+createCustomSequence :: [String] -> [Sequence] -> [(String,Int,Char)]
+createCustomSequence _      [] = []
+createCustomSequence []     _  = []
+createCustomSequence (x:xs) ys = zipped DL.++ (createCustomSequence xs ys)  
+    where
+        --Local definitions.--
+        zipped = DL.zip3 alldlines allpositions sequencechunk
+        allpositions  = [1..(DL.length (DBLC8.unpack 
+                                       (grabChunkByIndices (grabFastaSequence 
+                                                           (DL.head (DLS.splitOn ":" x)) ys)
+                                                           (start,stop))))]
+        start = read (fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))) :: Int64
+        stop  = read (snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))) :: Int64
+        alldlines = DL.replicate (DL.length (DBLC8.unpack
+                                            (grabChunkByIndices (grabFastaSequence
+                                                                (DL.head (DLS.splitOn ":" x)) ys)
+                                                                (start,stop))))
+                                 (DL.head (DLS.splitOn ":" x))
+        sequencechunk = DBLC8.unpack (grabChunkByIndices (grabFastaSequence
+                                                         (DL.head (DLS.splitOn ":" x)) ys)
+                                                         (start,stop))
+        ----------------------
+
+--grabFastaSequence -> This function will
+--grab the correct fasta sequence
+--using chromosome information
+--in the region file.
+grabFastaSequence :: String -> [Sequence] -> DBL.ByteString
+grabFastaSequence x ys = smallGrabFastaSequence x ys [0..(DL.length ys) - 1]
+
+--smallGrabFastaSequence -> This function will
+--grab the correct fasta sequence
+--using chromosome information
+--in the region file.
+smallGrabFastaSequence :: String -> [Sequence] -> [Int] -> DBL.ByteString
+smallGrabFastaSequence _ _ [] = DBL.empty
+smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys DL.!! z)))) == x) ->
+                                        extractunSD (extractSeqData (ys DL.!! z))
+                                        | otherwise ->
+                                        smallGrabFastaSequence x ys zs
+
+--grabChunkByIndices -> This function will
+--grab a chunk of a ByteString Based on
+--start and end indices.
+grabChunkByIndices :: DBLC8.ByteString -> (Int64,Int64) -> DBLC8.ByteString
+grabChunkByIndices xs (a,b) = DBLC8.take ((b-1) - (a-1)) (DBLC8.drop (a-1) xs)
+
+{--------------------------------------------------}
 
 
 {-Random nucleotides function.-}
@@ -298,49 +336,32 @@ randomNucleotides gen xs = do
 
 {-Random snv generator functions.-}
 
---randomSnvGenerator -> This function will
---generate random snvs given user input.
-randomSnvGenerator :: [Sequence] -> [String] -> [Int] -> [Int] -> [[String]]
-randomSnvGenerator [] [] [] [] = []
-randomSnvGenerator ds es fs gs = DL.map (\(a,b,c,(d,e)) -> [a,b,c,d,e]) (randomSnvGeneratorSmall ds es fs gs) 
+--randomMapping -> This function will
+--map a nucleotide to a nucleotide
+--transistion/transversion.
+randomMapping :: [(String,Int,Char)] -> [Int] -> [[String]]
+randomMapping [] _  = []
+randomMapping _  [] = []
+randomMapping xs ys = DL.map (\(a,b,c,(d,e)) -> [a,b,c,d,e]) (randomMappingSmall xs ys)
 
---randomSnvGeneratorSmall -> This function will
---generate random snvs given user input.
-randomSnvGeneratorSmall :: [Sequence] -> [String] -> [Int] -> [Int] -> [(String,String,String,(String,String))]
-randomSnvGeneratorSmall [] [] [] [] = []
-randomSnvGeneratorSmall ds es fs gs = (randomSnvs ds es fs gs)
-
---randomSnvs -> This function will
---generate random positions within
---specified start and stop. 
-randomSnvs :: [Sequence] -> [String] -> [Int] -> [Int] -> [(String,String,String,(String,String))]
-randomSnvs _  []      []     []    = []
-randomSnvs ws (x:xs) (y:ys) (z:zs) = [(DL.head (DLS.splitOn ":" x),Prelude.show y,Prelude.show y,mapTuple (\x -> [x]) 
-                                      (((DL.concatMap (\s -> DL.filter (\(r,_) -> r == s) nucleotidemapping) 
-                                      (bslToStrS (DBL.index (grabFastaSequence (DL.head (DLS.splitOn ":" x)) ws) 
-                                      (fromIntegral (y-1) :: Int64))))) DL.!! z))] 
-                                      DL.++ (randomSnvs ws xs ys zs)
-
---grabFastaSequence -> This function will
---grab the correct fasta sequence
---using chromosome information
---in the region file.
-grabFastaSequence :: String -> [Sequence] -> DBL.ByteString
-grabFastaSequence x ys = smallGrabFastaSequence x ys [0..(DL.length ys) - 1]
-
---smallGrabFastaSequence -> This function will
---grab the correct fasta sequence
---using chromosome information
---in the region file.
-smallGrabFastaSequence :: String -> [Sequence] -> [Int] -> DBL.ByteString
-smallGrabFastaSequence _ _ [] = DBL.empty
-smallGrabFastaSequence x ys (z:zs) = if | ((bslToStr (extractunSL (extractSeqLabel (ys DL.!! z)))) == x) ->
-                                        extractunSD (extractSeqData (ys DL.!! z))
-                                        | otherwise ->
-                                        smallGrabFastaSequence x ys zs
+--randomMappingSmall -> This function will
+--map a nucleotide to a nucleotide
+--transistion/transversion.
+randomMappingSmall :: [(String,Int,Char)] -> [Int] -> [(String,String,String,(String,String))]
+randomMappingSmall []     _  = []
+randomMappingSmall _      [] = []
+randomMappingSmall (x:xs) (y:ys) = [((\(a,_,_) -> a) x
+                                    ,Prelude.show ((\(_,b,_) -> b) x)
+                                    ,Prelude.show ((\(_,b,_) -> b) x)
+                                    ,([(\(_,_,c) -> c) x]
+                                    ,[snd ((DL.concatMap (\s -> DL.filter 
+                                                         (\(r,_) -> r == ((\(_,_,c) -> c) s)) 
+                                                         nucleotidemapping) [x]) DL.!! y)]))] 
+                                    DL.++ (randomMappingSmall xs ys) 
 
 --nucleotidemapping -> List containing possible mappings for nucleotides mutations.
 --(NUCLEOTIDE,NUCLEOTIDE_TRANSITION/NUCLEOTIDE_TRANSVERSION)
+nucleotidemapping :: [(Char,Char)]
 nucleotidemapping = [('A','T'),('A','G'),('A','C')
                     ,('T','A'),('T','G'),('T','C')
                     ,('G','C'),('G','A'),('G','T')
@@ -443,25 +464,23 @@ processArgsAndFiles (options,files) = do
     --Prepare readseqwindowstrarg.
     let seqwindowstr = DLS.splitOn "#" (DL.init (DL.tail readseqwindowstrarg)) 
     ------------------------------
+    --Create custom sequence using sequence window string
+    --and fasta file.
+    let customsequence = createCustomSequence seqwindowstr readfastafile 
     --Generate all list of randomly picked sequence window
     --strings [Total Amount of Randomized Variants] times.
-    randomseqwindowstrs <- allRandomIndices seqwindowstr readtotalnumberofrandomvararg
+    randomindices <- allRandomIndices customsequence readtotalnumberofrandomvararg
     ------------------------------
     --Initialize random number generator by seeding the MWC PRNG.
     randgen <- SRMWC.createSystemRandom
     -------------------------------------------------------------
-    --Get random positions.
-    randompositions <- randomPositions randgen randomseqwindowstrs
-    -----------------------
     --Get random nucleotides.
     randomnucleotides <- randomNucleotides randgen readtotalnumberofrandomvararg
     -------------------------
-    --Run randomsnvsgenerator.
-    let randomsnvs = randomSnvGenerator readfastafile
-                                        randomseqwindowstrs
-                                        randompositions
-                                        randomnucleotides
-    --------------------------
+    --Map the current sequence to the randomized sequences
+    --using a nucleotidemapping.
+    let randomsnvs = randomMapping randomindices randomnucleotides
+    ----------------------------
     --Add batch column to randomsnvs.
     let batchadded = batchAdder randomsnvs readtotalnumberofrandomvararg options 
     ---------------------------------
