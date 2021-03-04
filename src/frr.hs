@@ -275,20 +275,19 @@ createCustomSequence (x:xs) ys = zipped DL.++ (createCustomSequence xs ys)
     where
         --Local definitions.--
         zipped = DL.zip3 alldlines allpositions sequencechunk
-        allpositions  = [1..(DL.length (DBLC8.unpack 
-                                       (grabChunkByIndices (grabFastaSequence 
-                                                           (DL.head (DLS.splitOn ":" x)) ys)
-                                                           (start,stop))))]
-        start = read (fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))) :: Int64
-        stop  = read (snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x)))))) :: Int64
+        allpositions = [start..stop]
+        start = read (fst (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x))))))
+        stop  = read (snd (tuplifyTwo (DLS.splitOn "-" (DL.concat (DL.tail (DLS.splitOn ":" x))))))
         alldlines = DL.replicate (DL.length (DBLC8.unpack
                                             (grabChunkByIndices (grabFastaSequence
                                                                 (DL.head (DLS.splitOn ":" x)) ys)
-                                                                (start,stop))))
+                                                                (fromIntegral start :: Int64
+                                                                ,fromIntegral stop :: Int64))))
                                  (DL.head (DLS.splitOn ":" x))
         sequencechunk = DBLC8.unpack (grabChunkByIndices (grabFastaSequence
                                                          (DL.head (DLS.splitOn ":" x)) ys)
-                                                         (start,stop))
+                                                         (fromIntegral start :: Int64
+                                                         ,fromIntegral stop :: Int64))
         ----------------------
 
 --grabFastaSequence -> This function will
